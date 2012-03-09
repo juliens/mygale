@@ -298,9 +298,63 @@ zval *new_execute (ipointcut *pc) {
 }
 
 
+int instance_of (char *str1, char *str2) {
+        zend_class_entry **ce1;	
+        zend_class_entry **ce2;
+	//php_printf("TEST CLASS : %s = %s\n",str1,str2);
+	 if (zend_lookup_class(str1, strlen(str1), &ce1 TSRMLS_CC) == FAILURE) {
+		php_printf("FAIL %s\n",str1);
+		return 0;		
+	 }
+	 if (zend_lookup_class(str2, strlen(str2), &ce2 TSRMLS_CC) == FAILURE) {
+		php_printf("FAIL %s\n",str2);
+		return 0;
+	 }
+	return instanceof_function(*ce1, *ce2 TSRMLS_CC);
+}
+
+char* get_class_part (char *str) {
+	char *endp;
+	char *class_end;
+	endp=str+strlen(str);
+	class_end = php_memnstr(str, "::", 2, endp);
+	if (class_end!=NULL) {
+		char *tmp = ecalloc(sizeof(char *)*((strlen(str)-strlen(class_end))+1), 1);
+		strncat(tmp, str, (strlen(str)-strlen(class_end)));
+		return tmp;
+
+	}
+	return NULL;
+	
+}
+
+char * get_method_part (char *str) {
+
+	char *endp;
+	endp=str+strlen(str);
+	return php_memnstr(str, "::", 2, endp);
+}
 
 int compare_selector (char *str1, char *str2) {
-	return !strcmp(str1,str2);
+	char *class1 = get_class_part(str1);
+	char *class2 = get_class_part(str2);
+	// No class so simple comp
+	if (class1==NULL && class2==NULL) {
+		return !strcmp(str1,str2);
+	}
+	// Only one with class => false
+	if ((class1!=NULL && class2==NULL) || (class1==NULL && class2!=NULL)) {
+		return 0;
+	}
+	
+	//Two different classes => false
+	if (class1!=NULL && class2!=NULL && !instance_of(class2,class1)) {
+		return 0;
+	}
+	if (!strcmp (get_method_part(str1), "*")) {
+		return 1;
+	}
+	return !strcmp(get_method_part(str1),get_method_part(str2));
 }
 
 ZEND_DLEXPORT void mygale_execute (zend_op_array *ops TSRMLS_DC) {
@@ -458,56 +512,6 @@ static char *hp_get_function_name(zend_op_array *ops TSRMLS_DC) {
         len = strlen(cls) + strlen(func) + 10;
         ret = (char*)emalloc(len);
         snprintf(ret, len, "%s::%s", cls, func);
-      } else {
-        ret = estrdup(func);
-      }
-    } else {
-      long     curr_op;
-      int      desc_len;
-      char    *desc;
-      int      add_filename = 0;
-
-      /* we are dealing with a special directive/function like
-       * include, eval, etc.
-       */
-      curr_op = data->opline->extended_value;
-
-      switch (curr_op) {
-        case ZEND_EVAL:
-          func = "eval";
-          break;
-        case ZEND_INCLUDE:
-          func = "include";
-          add_filename = 1;
-          break;
-        case ZEND_REQUIRE:
-          func = "require";
-          add_filename = 1;
-          break;
-        case ZEND_INCLUDE_ONCE:
-          func = "include_once";
-          add_filename = 1;
-          break;
-        case ZEND_REQUIRE_ONCE:
-          func = "require_once";
-          add_filename = 1;
-          break;
-        default:
-          func = "???_op";
-          break;
-      }
-
-      /* For some operations, we'll add the filename as part of the function
-       * name to make the reports more useful. So rather than just "include"
-       * you'll see something like "run_init::foo.php" in your reports.
-       */
-      if (add_filename){
-        char *filename;
-        int   len;
-        filename = (char *)hp_get_base_filename((curr_func->op_array).filename);
-        len      = strlen("run_init") + strlen(filename) + 3;
-        ret      = (char *)emalloc(len);
-        snprintf(ret, len, "run_init::%s", filename);
       } else {
         ret = estrdup(func);
       }
