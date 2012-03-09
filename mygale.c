@@ -93,7 +93,7 @@ static const zend_function_entry mygalepc_functions[] = {
         PHP_ME(MygalePC, getArgs,arginfo_mygalepc_getargs, 0)
         PHP_ME(MygalePC, process,arginfo_mygalepc_process, 0)
         PHP_ME(MygalePC, getFunctionName,arginfo_mygalepc_getfunctionname, 0)
-        PHP_FE_END
+	{NULL, NULL, NULL}
 };
 
 PHP_METHOD(MygalePC, process)
