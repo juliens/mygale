@@ -313,15 +313,25 @@ int instance_of (char *str1, char *str2) {
 	return instanceof_function(*ce1, *ce2 TSRMLS_CC);
 }
 
+char * substr (char *str,int start, int end) {
+	if (start>strlen(str)) {
+		return NULL;
+	}
+	if (end>strlen(str)) {
+		end = strlen(str);
+	}
+	char *tmp = ecalloc(end-start+1, 1);
+	strncat(tmp, str+start, end-start);
+	return tmp;
+}
+
 char* get_class_part (char *str) {
 	char *endp;
 	char *class_end;
 	endp=str+strlen(str);
 	class_end = php_memnstr(str, "::", 2, endp);
 	if (class_end!=NULL) {
-		char *tmp = ecalloc(sizeof(char *)*((strlen(str)-strlen(class_end))+1), 1);
-		strncat(tmp, str, (strlen(str)-strlen(class_end)));
-		return tmp;
+		return substr(str,0,strlen(str)-strlen(class_end));
 
 	}
 	return NULL;
@@ -332,7 +342,24 @@ char * get_method_part (char *str) {
 
 	char *endp;
 	endp=str+strlen(str);
-	return php_memnstr(str, "::", 2, endp);
+	return (php_memnstr(str, "::", 2, endp)+2);
+}
+
+int strcmp_with_joker (char *str_with_jok, char *str) {
+	int i;
+	int joker=0;
+	for (i=0;i<strlen(str_with_jok);i++) {
+		if (str_with_jok[i]=='*') {
+			joker=i;
+			break;
+		}
+	}
+	if (joker) {
+		return !strcmp(substr(str_with_jok,0,joker),substr(str,0,joker));
+	} else {
+		return !strcmp(str_with_jok,str);
+	}
+	
 }
 
 int compare_selector (char *str1, char *str2) {
@@ -340,7 +367,7 @@ int compare_selector (char *str1, char *str2) {
 	char *class2 = get_class_part(str2);
 	// No class so simple comp
 	if (class1==NULL && class2==NULL) {
-		return !strcmp(str1,str2);
+		return strcmp_with_joker(str1,str2);
 	}
 	// Only one with class => false
 	if ((class1!=NULL && class2==NULL) || (class1==NULL && class2!=NULL)) {
@@ -351,10 +378,11 @@ int compare_selector (char *str1, char *str2) {
 	if (class1!=NULL && class2!=NULL && !instance_of(class2,class1)) {
 		return 0;
 	}
+	//Method only joker
 	if (!strcmp (get_method_part(str1), "*")) {
 		return 1;
 	}
-	return !strcmp(get_method_part(str1),get_method_part(str2));
+	return strcmp_with_joker(get_method_part(str1),get_method_part(str2));
 }
 
 ZEND_DLEXPORT void mygale_execute (zend_op_array *ops TSRMLS_DC) {
@@ -503,8 +531,8 @@ static char *hp_get_function_name(zend_op_array *ops TSRMLS_DC) {
        * of the object.
        */
       if (curr_func->common.scope) {
-        cls = curr_func->common.scope->name;
-      } else if (data->object) {
+//        cls = curr_func->common.scope->name;
+//      } else if (data->object) {
         cls = Z_OBJCE(*data->object)->name;
       }
 
