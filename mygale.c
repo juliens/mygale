@@ -52,13 +52,13 @@ static zend_class_entry* mygalepc_class_entry;
 zend_object_handlers mygalepc_object_handlers;
 
 typedef struct {
-	zval *callback;
-	zval *selector;
+    zval *callback;
+    zval *selector;
 } pointcut;
 
 typedef struct {
-	zval *callback;
-	zval *object;
+    zval *callback;
+    zval *object;
 } ipointcut;
 
 typedef struct {
@@ -70,6 +70,7 @@ typedef struct {
     zval *this;
     zval ***ret;
     ipointcut *ipointcut;
+    int argsOverload;
 }  mygalepc_object;
 
 
@@ -77,6 +78,7 @@ PHP_METHOD(MygalePC, getArgs);
 PHP_METHOD(MygalePC, getThis);
 PHP_METHOD(MygalePC, getFunctionName);
 PHP_METHOD(MygalePC, process);
+PHP_METHOD(MygalePC, processWithArgs);
 
 ZEND_BEGIN_ARG_INFO(arginfo_mygalepc_getargs, 0)
 ZEND_END_ARG_INFO()
@@ -91,101 +93,158 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_INFO(arginfo_mygalepc_getthis, 0)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_INFO(arginfo_mygalepc_processwithargs, 0)
+ZEND_END_ARG_INFO()
+
 zval *new_execute(ipointcut *);
 
 static const zend_function_entry mygalepc_functions[] = {
         PHP_ME(MygalePC, getArgs,arginfo_mygalepc_getargs, 0)
         PHP_ME(MygalePC, getThis,arginfo_mygalepc_getthis, 0)
         PHP_ME(MygalePC, process,arginfo_mygalepc_process, 0)
+        PHP_ME(MygalePC, processWithArgs,arginfo_mygalepc_processwithargs, 0)
         PHP_ME(MygalePC, getFunctionName,arginfo_mygalepc_getfunctionname, 0)
-	{NULL, NULL, NULL}
+    {NULL, NULL, NULL}
 };
+
+zval *exec(mygalepc_object *obj, zval *args) {
+    if (args!=NULL) {
+        obj->argsOverload=1;
+        obj->args = args;
+    }
+    if (obj->ipointcut==NULL) {
+        zend_execute_data *prev_data;
+        zval **original_return_value;   
+        zend_op **original_opline_ptr;
+        zend_op_array *prev_op;
+        HashTable *calling_symbol_table;
+        zval *prev_this;
+
+        //Save previous context
+        prev_op = EG(active_op_array);
+        prev_data = EG(current_execute_data);
+        original_opline_ptr = EG(opline_ptr);
+        calling_symbol_table = EG(active_symbol_table);
+        prev_this = EG(This);
+        
+        EG(active_op_array) = (zend_op_array *) obj->op;
+        EG(current_execute_data) = obj->ex;
+        EG(This) = obj->this;
+        if (obj->argsOverload) {
+            int i,arg_count;
+            zend_execute_data *ex = EG(current_execute_data);
+            arg_count = (int)(zend_uintptr_t) *(ex->function_state.arguments);
+            HashPosition pos;
+            i=0;
+            zval ** temp=NULL;
+            zend_hash_internal_pointer_reset_ex(Z_ARRVAL_P(obj->args), &pos);
+
+            while (zend_hash_get_current_data_ex(Z_ARRVAL_P(obj->args), (void **)&temp, &pos)==SUCCESS) {
+               i++;
+               zend_vm_stack_push_nocheck(*temp TSRMLS_CC);
+               zend_hash_move_forward_ex(Z_ARRVAL_P(obj->args), &pos);
+            }
+            ex->function_state.arguments = zend_vm_stack_top(TSRMLS_C);
+            zend_vm_stack_push_nocheck((void*)(zend_uintptr_t)i TSRMLS_CC);
+        }
+
+        _zend_execute(EG(active_op_array) TSRMLS_CC);
+        
+        //Take previous context
+        EG(This) = prev_this;
+        EG(opline_ptr) = original_opline_ptr;
+        EG(active_op_array) = (zend_op_array *) prev_op;
+        EG(current_execute_data) = prev_data;
+        EG(active_symbol_table) = calling_symbol_table;
+// zend_throw_exception(zend_exception_get_default(TSRMLS_C), "String could not be parsed as XML", 0 TSRMLS_CC);
+//return;
+        //Only if we do not have exception
+        if (!EG(exception)) {
+           return (zval *)*EG(return_value_ptr_ptr);
+        } else {
+
+
+        }
+        
+    } else {
+        zval *exec_return;
+        //php_printf("BEFORE EXE");
+        if (obj->argsOverload) {
+            mygalepc_object *objN = (mygalepc_object *)zend_object_store_get_object(obj->ipointcut->object TSRMLS_CC);
+            objN->argsOverload=1;
+            objN->args = obj->args;
+            zval_copy_ctor(objN->args);
+        }
+        exec_return = new_execute(obj->ipointcut);
+        //php_printf("AFTER EXE");
+
+        //Only if we do not have exception
+        if (!EG(exception)) {
+            return exec_return;
+        } 
+    }
+
+    return NULL;
+
+}
+
+PHP_METHOD(MygalePC, processWithArgs)
+{
+    mygalepc_object *obj = (mygalepc_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
+    zval *params;
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "a", &params) == FAILURE) {
+        zend_error(E_ERROR, "Problem in processWithArgs");
+    }
+    zval *toReturn;
+    toReturn = exec(obj, params);
+    if (toReturn != NULL) {
+            COPY_PZVAL_TO_ZVAL(*return_value, toReturn);
+    }
+    
+}
+
 
 PHP_METHOD(MygalePC, process)
 {
-	mygalepc_object *obj = (mygalepc_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
-	if (obj->ipointcut==NULL) {
-	  	zend_execute_data *prev_data;
-		zval **original_return_value;	
-		zend_op **original_opline_ptr;
-		zend_op_array *prev_op;
-	        HashTable *calling_symbol_table;
-		zval *prev_this;
-
-		//Save previous context
-		prev_op = EG(active_op_array);
-  		prev_data = EG(current_execute_data);
-                original_opline_ptr = EG(opline_ptr);
-                calling_symbol_table = EG(active_symbol_table);
-		prev_this = EG(This);
-		
-		EG(active_op_array) = (zend_op_array *) obj->op;
-		EG(current_execute_data) = obj->ex;
-		EG(This) = obj->this;
-
-                _zend_execute(EG(active_op_array) TSRMLS_CC);
-		
-		//Take previous context
-		EG(This) = prev_this;
-                EG(opline_ptr) = original_opline_ptr;
-		EG(active_op_array) = (zend_op_array *) prev_op;
-		EG(current_execute_data) = prev_data;
-                EG(active_symbol_table) = calling_symbol_table;
-// zend_throw_exception(zend_exception_get_default(TSRMLS_C), "String could not be parsed as XML", 0 TSRMLS_CC);
-//return;
-		//Only if we do not have exception
-		if (!EG(exception)) {
-			COPY_PZVAL_TO_ZVAL(*return_value,(zval *)*EG(return_value_ptr_ptr));
-		} else {
-
-
-		}
-		
-	} else {
-		zval *exec_return;
-		//php_printf("BEFORE EXE");
-		exec_return = new_execute(obj->ipointcut);
-		//php_printf("AFTER EXE");
-
-		//Only if we do not have exception
-		if (!EG(exception)) {
-			COPY_PZVAL_TO_ZVAL(*return_value, exec_return);
-		} 
-	}
-
-	//return;
+    zval *toReturn;
+    mygalepc_object *obj = (mygalepc_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
+    toReturn = exec(obj, NULL);
+    if (toReturn != NULL) {
+            COPY_PZVAL_TO_ZVAL(*return_value, toReturn);
+    }
 }
 
 PHP_METHOD(MygalePC, getArgs)
 {
-	mygalepc_object *obj = (mygalepc_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
+    mygalepc_object *obj = (mygalepc_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
 
-	Z_TYPE_P(return_value)	 = IS_ARRAY;
-	Z_ARRVAL_P(return_value) = Z_ARRVAL_P(obj->args);
-	return;
+    Z_TYPE_P(return_value)   = IS_ARRAY;
+    Z_ARRVAL_P(return_value) = Z_ARRVAL_P(obj->args);
+	Z_ADDREF_P(return_value);
+    return;
 }
 
 PHP_METHOD(MygalePC, getThis)
 {
-	mygalepc_object *obj = (mygalepc_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
-	if (obj->this!=NULL) {
-		Z_TYPE_P(return_value)	 = IS_OBJECT;
-		Z_OBJVAL_P(return_value) = Z_OBJVAL_P(obj->this);
-		//In order not to destroy OBJVAL(obj->this) 
-		//Need to verify memory leak
-		Z_ADDREF_P(return_value);
-	}
-	return;
+    mygalepc_object *obj = (mygalepc_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
+    if (obj->this!=NULL) {
+        Z_TYPE_P(return_value)   = IS_OBJECT;
+        Z_OBJVAL_P(return_value) = Z_OBJVAL_P(obj->this);
+        //In order not to destroy OBJVAL(obj->this) 
+        //Need to verify memory leak
+        Z_ADDREF_P(return_value);
+    }
+    return;
 }
 
 PHP_METHOD(MygalePC, getFunctionName)
 {
-	mygalepc_object *obj = (mygalepc_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
+    mygalepc_object *obj = (mygalepc_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
 
-	Z_TYPE_P(return_value)	 = IS_STRING;
-	Z_STRVAL_P(return_value) = obj->funcName;
-	Z_STRLEN_P(return_value) = strlen(obj->funcName);
-	return;
+    Z_TYPE_P(return_value)   = IS_STRING;
+    Z_STRVAL_P(return_value) = obj->funcName;
+    Z_STRLEN_P(return_value) = strlen(obj->funcName);
+    return;
 }
 
 
@@ -266,33 +325,33 @@ zval* execute_please (zval func, char *name, zval *call_args, zend_op_array *ops
 }
 
 void start_mygale () {
-	if (!started) {
-		started=1;		
-	        zend_class_entry ce;
+    if (!started) {
+        started=1;      
+            zend_class_entry ce;
 
-		INIT_CLASS_ENTRY(ce, "MygalePC", mygalepc_functions);
-		mygalepc_class_entry = zend_register_internal_class(&ce TSRMLS_CC);
+        INIT_CLASS_ENTRY(ce, "MygalePC", mygalepc_functions);
+        mygalepc_class_entry = zend_register_internal_class(&ce TSRMLS_CC);
 
-		mygalepc_class_entry->create_object = mygalepc_create_handler;
-		memcpy(&mygalepc_object_handlers,
-			zend_get_std_object_handlers(), sizeof(zend_object_handlers));
-		mygalepc_object_handlers.clone_obj = NULL;
+        mygalepc_class_entry->create_object = mygalepc_create_handler;
+        memcpy(&mygalepc_object_handlers,
+            zend_get_std_object_handlers(), sizeof(zend_object_handlers));
+        mygalepc_object_handlers.clone_obj = NULL;
 
-		MAKE_STD_ZVAL(before_arr);
-		array_init(before_arr);
+        MAKE_STD_ZVAL(before_arr);
+        array_init(before_arr);
 
-		MAKE_STD_ZVAL(around_arr);
-		array_init(around_arr);
+        MAKE_STD_ZVAL(around_arr);
+        array_init(around_arr);
 
-		_zend_execute = zend_execute;
-		zend_execute = mygale_execute;
-	}
+        _zend_execute = zend_execute;
+        zend_execute = mygale_execute;
+    }
 }
 
 zval *new_execute (ipointcut *pc) {
-	zval *args[1];
-	args[0] = (zval *)&(pc->object);
-	zval *zret_ptr=NULL;
+    zval *args[1];
+    args[0] = (zval *)&(pc->object);
+    zval *zret_ptr=NULL;
         zend_fcall_info fci;
         zend_fcall_info_cache fcic= { 0, NULL, NULL, NULL, NULL };
         TSRMLS_FETCH();
@@ -306,220 +365,221 @@ zval *new_execute (ipointcut *pc) {
         fci.object_ptr= NULL;
         fci.no_separation= 0;
         if (zend_call_function(&fci, &fcic TSRMLS_CC) == FAILURE) {
-       	//php_printf("BUG\n");
-       	}
-	if (!EG(exception)) {
-		//php_printf("AFTER EXECUTE\n");
-		return zret_ptr;
-	}
+        //php_printf("BUG\n");
+        }
+    if (!EG(exception)) {
+        //php_printf("AFTER EXECUTE\n");
+        return zret_ptr;
+    }
 
 }
 
 
 int instance_of (char *str1, char *str2) {
-        zend_class_entry **ce1;	
+        zend_class_entry **ce1; 
         zend_class_entry **ce2;
-	//php_printf("TEST CLASS : %s = %s\n",str1,str2);
-	 if (zend_lookup_class(str1, strlen(str1), &ce1 TSRMLS_CC) == FAILURE) {
-		php_printf("FAIL %s\n",str1);
-		return 0;		
-	 }
-	 if (zend_lookup_class(str2, strlen(str2), &ce2 TSRMLS_CC) == FAILURE) {
-		php_printf("FAIL %s\n",str2);
-		return 0;
-	 }
-	return instanceof_function(*ce1, *ce2 TSRMLS_CC);
+    //php_printf("TEST CLASS : %s = %s\n",str1,str2);
+     if (zend_lookup_class(str1, strlen(str1), &ce1 TSRMLS_CC) == FAILURE) {
+        php_printf("FAIL %s\n",str1);
+        return 0;       
+     }
+     if (zend_lookup_class(str2, strlen(str2), &ce2 TSRMLS_CC) == FAILURE) {
+        php_printf("FAIL %s\n",str2);
+        return 0;
+     }
+    return instanceof_function(*ce1, *ce2 TSRMLS_CC);
 }
 
 char * substr (char *str,int start, int end) {
-	if (start>strlen(str)) {
-		return NULL;
-	}
-	if (end>strlen(str)) {
-		end = strlen(str);
-	}
-	char *tmp = ecalloc(end-start+1, 1);
-	strncat(tmp, str+start, end-start);
-	return tmp;
+    if (start>strlen(str)) {
+        return NULL;
+    }
+    if (end>strlen(str)) {
+        end = strlen(str);
+    }
+    char *tmp = ecalloc(end-start+1, 1);
+    strncat(tmp, str+start, end-start);
+    return tmp;
 }
 
 char* get_class_part (char *str) {
-	char *endp;
-	char *class_end;
-	endp=str+strlen(str);
-	class_end = php_memnstr(str, "::", 2, endp);
-	if (class_end!=NULL) {
-		return substr(str,0,strlen(str)-strlen(class_end));
+    char *endp;
+    char *class_end;
+    endp=str+strlen(str);
+    class_end = php_memnstr(str, "::", 2, endp);
+    if (class_end!=NULL) {
+        return substr(str,0,strlen(str)-strlen(class_end));
 
-	}
-	return NULL;
-	
+    }
+    return NULL;
+    
 }
 
 char * get_method_part (char *str) {
 
-	char *endp;
-	endp=str+strlen(str);
-	return (php_memnstr(str, "::", 2, endp)+2);
+    char *endp;
+    endp=str+strlen(str);
+    return (php_memnstr(str, "::", 2, endp)+2);
 }
 
 int strcmp_with_joker (char *str_with_jok, char *str) {
-	int i;
-	int joker=0;
-	for (i=0;i<strlen(str_with_jok);i++) {
-		if (str_with_jok[i]=='*') {
-			joker=i;
-			break;
-		}
-	}
-	if (joker) {
-		return !strcmp(substr(str_with_jok,0,joker),substr(str,0,joker));
-	} else {
-		return !strcmp(str_with_jok,str);
-	}
-	
+    int i;
+    int joker=0;
+    for (i=0;i<strlen(str_with_jok);i++) {
+        if (str_with_jok[i]=='*') {
+            joker=i;
+            break;
+        }
+    }
+    if (joker) {
+        return !strcmp(substr(str_with_jok,0,joker),substr(str,0,joker));
+    } else {
+        return !strcmp(str_with_jok,str);
+    }
+    
 }
 
 int compare_selector (char *str1, char *str2) {
-	char *class1 = get_class_part(str1);
-	char *class2 = get_class_part(str2);
-	// No class so simple comp
-	if (class1==NULL && class2==NULL) {
-		return strcmp_with_joker(str1,str2);
-	}
-	// Only one with class => false
-	if ((class1!=NULL && class2==NULL) || (class1==NULL && class2!=NULL)) {
-		return 0;
-	}
-	
-	//Two different classes => false
-	if (class1!=NULL && class2!=NULL && !instance_of(class2,class1)) {
-		return 0;
-	}
-	//Method only joker
-	if (!strcmp (get_method_part(str1), "*")) {
-		return 1;
-	}
-	return strcmp_with_joker(get_method_part(str1),get_method_part(str2));
+    char *class1 = get_class_part(str1);
+    char *class2 = get_class_part(str2);
+    // No class so simple comp
+    if (class1==NULL && class2==NULL) {
+        return strcmp_with_joker(str1,str2);
+    }
+    // Only one with class => false
+    if ((class1!=NULL && class2==NULL) || (class1==NULL && class2!=NULL)) {
+        return 0;
+    }
+    
+    //Two different classes => false
+    if (class1!=NULL && class2!=NULL && !instance_of(class2,class1)) {
+        return 0;
+    }
+    //Method only joker
+    if (!strcmp (get_method_part(str1), "*")) {
+        return 1;
+    }
+    return strcmp_with_joker(get_method_part(str1),get_method_part(str2));
 }
 
 ZEND_DLEXPORT void mygale_execute (zend_op_array *ops TSRMLS_DC) {
 
 
-	char          *func = NULL;
-	func = hp_get_function_name(ops TSRMLS_CC);
-	
-	zval *args=NULL;
-	args = get_current_args(ops);
+    char          *func = NULL;
+    func = hp_get_function_name(ops TSRMLS_CC);
+    
+    zval *args=NULL;
+    args = get_current_args(ops);
 
-	HashPosition pos;
-	pointcut **temppc;
-	zend_hash_internal_pointer_reset_ex(Z_ARRVAL_P(before_arr),&pos);
-	while (zend_hash_get_current_data_ex(Z_ARRVAL_P(before_arr), (void **)&temppc, &pos)==SUCCESS) {
-		zend_hash_move_forward_ex(Z_ARRVAL_P(before_arr), &pos);
-	
-		if (compare_selector(Z_STRVAL_P((*temppc)->selector),func)) {
-			zval *rtr=NULL;
-			rtr = execute_please (*(*temppc)->callback, func, args, NULL, NULL);
-		}
-	}
-	
-	zend_hash_internal_pointer_reset_ex(Z_ARRVAL_P(around_arr),&pos);
-	int arounded = 0;
-	ipointcut *previous_ipc = NULL;
+    HashPosition pos;
+    pointcut **temppc;
+    zend_hash_internal_pointer_reset_ex(Z_ARRVAL_P(before_arr),&pos);
+    while (zend_hash_get_current_data_ex(Z_ARRVAL_P(before_arr), (void **)&temppc, &pos)==SUCCESS) {
+        zend_hash_move_forward_ex(Z_ARRVAL_P(before_arr), &pos);
+    
+        if (compare_selector(Z_STRVAL_P((*temppc)->selector),func)) {
+            zval *rtr=NULL;
+            rtr = execute_please (*(*temppc)->callback, func, args, NULL, NULL);
+        }
+    }
+    
+    zend_hash_internal_pointer_reset_ex(Z_ARRVAL_P(around_arr),&pos);
+    int arounded = 0;
+    ipointcut *previous_ipc = NULL;
 
-	zval ***ret_test;
-	while (zend_hash_get_current_data_ex(Z_ARRVAL_P(around_arr), (void **)&temppc, &pos)==SUCCESS) {
-		zend_hash_move_forward_ex(Z_ARRVAL_P(around_arr), &pos);
-	
-		if (compare_selector(Z_STRVAL_P((*temppc)->selector),func)) {
-			arounded=1;
-			zval *rtr=NULL;
+    zval ***ret_test;
+    while (zend_hash_get_current_data_ex(Z_ARRVAL_P(around_arr), (void **)&temppc, &pos)==SUCCESS) {
+        zend_hash_move_forward_ex(Z_ARRVAL_P(around_arr), &pos);
+    
+        if (compare_selector(Z_STRVAL_P((*temppc)->selector),func)) {
+            arounded=1;
+            zval *rtr=NULL;
 
-			zval *object;
-			MAKE_STD_ZVAL(object);
-			Z_TYPE_P(object) = IS_OBJECT;
-			(object)->value.obj = mygalepc_create_handler(mygalepc_class_entry);
-			mygalepc_object *obj = (mygalepc_object *)zend_object_store_get_object(object TSRMLS_CC);
-			obj->args = args;
-			zval_copy_ctor(obj->args);
-			obj->funcName = emalloc(sizeof(char *)*strlen(func));
-			strcpy(obj->funcName,func);
-			if (previous_ipc!=NULL) {
-				obj->ipointcut = previous_ipc;
-			} else {
-				obj->op = ops;
-				obj->ex = EG(current_execute_data);
-				ret_test = &EG(return_value_ptr_ptr);
-				obj->this = EG(This);
-			}
-			previous_ipc = emalloc(sizeof(ipointcut));
-			previous_ipc->callback = (*temppc)->callback;
-			previous_ipc->object = object;
-		}
-	}
-	if (!arounded) {
-		_zend_execute(ops TSRMLS_CC);
-	} else {
-		zval *exec_return;
-		exec_return = new_execute(previous_ipc);
-		//Only if we do not have exception
-		if (!EG(exception)) {
-	                if (EG(return_value_ptr_ptr)) {
-				*EG(return_value_ptr_ptr)=exec_return;
-			}
-		}
+            zval *object;
+            MAKE_STD_ZVAL(object);
+            Z_TYPE_P(object) = IS_OBJECT;
+            (object)->value.obj = mygalepc_create_handler(mygalepc_class_entry);
+            mygalepc_object *obj = (mygalepc_object *)zend_object_store_get_object(object TSRMLS_CC);
+            obj->args = args;
+            obj->argsOverload = 0;
+            zval_copy_ctor(obj->args);
+            obj->funcName = emalloc(sizeof(char *)*strlen(func));
+            strcpy(obj->funcName,func);
+            if (previous_ipc!=NULL) {
+                obj->ipointcut = previous_ipc;
+            } else {
+                obj->op = ops;
+                obj->ex = EG(current_execute_data);
+                ret_test = &EG(return_value_ptr_ptr);
+                obj->this = EG(This);
+            }
+            previous_ipc = emalloc(sizeof(ipointcut));
+            previous_ipc->callback = (*temppc)->callback;
+            previous_ipc->object = object;
+        }
+    }
+    if (!arounded) {
+        _zend_execute(ops TSRMLS_CC);
+    } else {
+        zval *exec_return;
+        exec_return = new_execute(previous_ipc);
+        //Only if we do not have exception
+        if (!EG(exception)) {
+                    if (EG(return_value_ptr_ptr)) {
+                *EG(return_value_ptr_ptr)=exec_return;
+            }
+        }
 
-	}
-	return;
+    }
+    return;
 }
 
 
 
 ZEND_FUNCTION(mygale_add_around)
 {
-	start_mygale();
-	pointcut *PC = emalloc(sizeof(pointcut));
-	zval *callback;
-	zval *selector;
+    start_mygale();
+    pointcut *PC = emalloc(sizeof(pointcut));
+    zval *callback;
+    zval *selector;
         if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zz", &selector, &callback) == FAILURE) {
                 return;
         }
-	Z_ADDREF_P(callback);
-	Z_ADDREF_P(selector);
-	PC->selector = selector;
-	PC->callback = callback;	
+    Z_ADDREF_P(callback);
+    Z_ADDREF_P(selector);
+    PC->selector = selector;
+    PC->callback = callback;    
 
-	zend_hash_next_index_insert(around_arr->value.ht, &PC, sizeof(pointcut *), NULL);
+    zend_hash_next_index_insert(around_arr->value.ht, &PC, sizeof(pointcut *), NULL);
 
 }
 ZEND_FUNCTION(mygale_add_before)
 {
-	start_mygale();
+    start_mygale();
 
-	pointcut *PC = emalloc(sizeof(pointcut));
-	zval *callback;
-	zval *selector;
+    pointcut *PC = emalloc(sizeof(pointcut));
+    zval *callback;
+    zval *selector;
         if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zz", &selector, &callback) == FAILURE) {
                 return;
         }
-	Z_ADDREF_P(callback);
-	Z_ADDREF_P(selector);
-	PC->selector = selector;
-	PC->callback = callback;	
+    Z_ADDREF_P(callback);
+    Z_ADDREF_P(selector);
+    PC->selector = selector;
+    PC->callback = callback;    
 
-	zend_hash_next_index_insert(before_arr->value.ht, &PC, sizeof(pointcut *), NULL);
+    zend_hash_next_index_insert(before_arr->value.ht, &PC, sizeof(pointcut *), NULL);
 
 }
 
 ZEND_FUNCTION(mygale_start)
 {
-	start_mygale();
+    start_mygale();
 }
 
 ZEND_FUNCTION(mygale_stop)
 {
-	zend_execute = _zend_execute;
+    zend_execute = _zend_execute;
 }
 
 
@@ -568,14 +628,14 @@ static char *hp_get_function_name(zend_op_array *ops TSRMLS_DC) {
 
 
 static zval *get_current_args (zend_op_array *ops TSRMLS_DC) {
-	void **p;
+    void **p;
         int arg_count;
         int i;
-	zval *return_value;
-	MAKE_STD_ZVAL(return_value);
-	array_init(return_value);	
-	zend_execute_data *ex = EG(current_execute_data);
-	if (!ex || !ex->function_state.arguments) {
+    zval *return_value;
+    MAKE_STD_ZVAL(return_value);
+    array_init(return_value);   
+    zend_execute_data *ex = EG(current_execute_data);
+    if (!ex || !ex->function_state.arguments) {
                 zend_error(E_WARNING, "ooops");
                 return;
         }
@@ -592,7 +652,7 @@ static zval *get_current_args (zend_op_array *ops TSRMLS_DC) {
                 INIT_PZVAL(element);
                 zend_hash_next_index_insert(return_value->value.ht, &element, sizeof(zval *), NULL);
         }
-	return return_value;
+    return return_value;
 
 }
 
