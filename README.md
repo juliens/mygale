@@ -34,15 +34,19 @@ The callback receive a object parameter which have 2 methods
  * getFunctionName() : return the name of the function/method call (class::method, function)
  * getArgs() : return an array of the parameter passed to the called function/method
 
+The catch selector syntax
+
+ * "A::test" catch the test method for class A and all is childs
+ * "A::*" catch all the method for class A and all is childs
+ * "A::admin*" catch all the method for class A and all is childs which start with admin
+ * "test*" catch all function which start with test
+
 Still in Work
 ============
 
  * mygale_add_after
  * mygale_add_catch
  * autostart parameter in .ini
- * joker in function/method selector
- * catch parent class execution
- * overload catching test
  * add method getThis() in callback parameter
  * add method processWithArgs() in callback parameter
  * add method processWithArgsArray() in callback parameter
