@@ -74,6 +74,7 @@ typedef struct {
 
 
 PHP_METHOD(MygalePC, getArgs);
+PHP_METHOD(MygalePC, getThis);
 PHP_METHOD(MygalePC, getFunctionName);
 PHP_METHOD(MygalePC, process);
 
@@ -87,10 +88,14 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_INFO(arginfo_mygalepc_process, 0)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_INFO(arginfo_mygalepc_getthis, 0)
+ZEND_END_ARG_INFO()
+
 zval *new_execute(ipointcut *);
 
 static const zend_function_entry mygalepc_functions[] = {
         PHP_ME(MygalePC, getArgs,arginfo_mygalepc_getargs, 0)
+        PHP_ME(MygalePC, getThis,arginfo_mygalepc_getthis, 0)
         PHP_ME(MygalePC, process,arginfo_mygalepc_process, 0)
         PHP_ME(MygalePC, getFunctionName,arginfo_mygalepc_getfunctionname, 0)
 	{NULL, NULL, NULL}
@@ -157,6 +162,18 @@ PHP_METHOD(MygalePC, getArgs)
 
 	Z_TYPE_P(return_value)	 = IS_ARRAY;
 	Z_ARRVAL_P(return_value) = Z_ARRVAL_P(obj->args);
+	return;
+}
+
+PHP_METHOD(MygalePC, getThis)
+{
+	mygalepc_object *obj = (mygalepc_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
+
+	Z_TYPE_P(return_value)	 = IS_OBJECT;
+	Z_OBJVAL_P(return_value) = Z_OBJVAL_P(obj->this);
+	//In order not to destroy OBJVAL(obj->this) 
+	//Need to verify memory leak
+	Z_ADDREF_P(return_value);
 	return;
 }
 
