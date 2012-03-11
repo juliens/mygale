@@ -24,6 +24,7 @@ The callback receive a object parameter which have 3 methods
  * getArgs() : return an array of the parameter passed to the called function/method
  * getThis() : return the current object of the method which has been caught
  * process() : execute the catch method and return is result
+ * processWithArgs(array $pArgs) : execute the catch method replacing original args by the $pArgs and return is result
 
 The callback return is the return you will give to the result of the catched function/method
 
@@ -49,6 +50,4 @@ Still in Work
  * mygale_add_after
  * mygale_add_catch
  * autostart parameter in .ini
- * add method processWithArgs() in callback parameter
- * add method processWithArgsArray() in callback parameter
 
