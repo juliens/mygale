@@ -22,6 +22,7 @@ The callback receive a object parameter which have 3 methods
 
  * getFunctionName() : return the name of the function/method call (class::method, function)
  * getArgs() : return an array of the parameter passed to the called function/method
+ * getThis() : return the current object of the method which has been caught
  * process() : execute the catch method and return is result
 
 The callback return is the return you will give to the result of the catched function/method
@@ -33,6 +34,7 @@ The callback receive a object parameter which have 2 methods
 
  * getFunctionName() : return the name of the function/method call (class::method, function)
  * getArgs() : return an array of the parameter passed to the called function/method
+ * getThis() : return the current object of the method which has been caught
 
 The catch selector syntax
 
@@ -47,7 +49,6 @@ Still in Work
  * mygale_add_after
  * mygale_add_catch
  * autostart parameter in .ini
- * add method getThis() in callback parameter
  * add method processWithArgs() in callback parameter
  * add method processWithArgsArray() in callback parameter
 
