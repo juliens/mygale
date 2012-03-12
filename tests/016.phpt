@@ -7,7 +7,7 @@ function test () {
 	return "test";
 }
 
-mygale_add_around("test", function ($pObj) {
+AOP_add_around("test", function ($pObj) {
 	if ($pObj->getThis()!=null) {
 		echo "error";
 	} else {

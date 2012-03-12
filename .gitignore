@@ -22,8 +22,8 @@ ltmain.sh
 missing
 mkinstalldirs
 modules/
-mygale.la
-mygale.lo
+*.la
+*.lo
 run-tests.php
 tests/*.diff
 tests/*.exp

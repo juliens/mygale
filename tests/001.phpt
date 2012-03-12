@@ -1,5 +1,5 @@
 --TEST--
-mygale_add_before simple test echo
+AOP_add_before simple test echo
 --FILE--
 <?php 
 
@@ -9,7 +9,7 @@ class mytest {
 	}
 }
 
-mygale_add_before("mytest::test", function () { echo "before"; });
+AOP_add_before("mytest::test", function () { echo "before"; });
 $test = new mytest();
 $test->test();
 

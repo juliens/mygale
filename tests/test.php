@@ -17,9 +17,9 @@ class test_class {
 
 
 $my = new test_class();
-//mygale_start();
+//AOP_start();
 //*
-mygale_add_around("test_class::test",
+AOP_add_around("test_class::test",
 function ($pObj) {
 //		throw new Exception("around");
 	echo "Start Time\n";
@@ -31,7 +31,7 @@ function ($pObj) {
 });
 //*/
 //*
-mygale_add_around("test_class::test2",
+AOP_add_around("test_class::test2",
 function ($pObj) {
 		//throw new Exception("around");
 	echo "Start Time 2\n";
@@ -67,13 +67,13 @@ exit;
 
 
 
-//mygale_add_before("test_class::test",function ($pObj) { echo "before ".$pObj->getFunctionName()."\n";$pObj->process(); });
-//mygale_add_before("test_class::toto",function ($pObj) { echo "before ".$pObj->getFunctionName()."\n"; });
-//mygale_add_around("test_class::toto",function ($pObj) { echo "before ".$pObj->getFunctionName()."\n";$pObj->process(); });
-//mygale_add_around("test_class::test",function ($pObj) { echo "before ".$pObj->getFunctionName()."\n";$pObj->process(); });
+//AOP_add_before("test_class::test",function ($pObj) { echo "before ".$pObj->getFunctionName()."\n";$pObj->process(); });
+//AOP_add_before("test_class::toto",function ($pObj) { echo "before ".$pObj->getFunctionName()."\n"; });
+//AOP_add_around("test_class::toto",function ($pObj) { echo "before ".$pObj->getFunctionName()."\n";$pObj->process(); });
+//AOP_add_around("test_class::test",function ($pObj) { echo "before ".$pObj->getFunctionName()."\n";$pObj->process(); });
 $my->test("arg1","arg2");
 $my->toto("arg1","arg2");
 $my->titi("arg1","arg2");
-mygale_stop ();
-//$test = new MygalePC();
+AOP_stop ();
+//$test = new AOPPC();
 //var_dump( $test->getArgs());

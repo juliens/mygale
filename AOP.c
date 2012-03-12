@@ -3,7 +3,7 @@
 #endif
 
 #include "php.h"
-#include "mygale.h"
+#include "AOP.h"
 #include "Zend/zend_operators.h"
 
 /* Pointer to the original execute function */
@@ -17,12 +17,12 @@ static zval *get_current_args (zend_op_array *ops TSRMLS_DC);
 
 /*** FUNCTION DECLARATION ***/
 /* La liste des fonctions que zend va rendre accessible par ce module */
-static zend_function_entry mygale_functions[] =
+static zend_function_entry AOP_functions[] =
 {
-    ZEND_FE(mygale_start, NULL)
-    ZEND_FE(mygale_add_before, NULL)
-    ZEND_FE(mygale_add_around, NULL)
-    ZEND_FE(mygale_stop, NULL)
+    ZEND_FE(AOP_start, NULL)
+    ZEND_FE(AOP_add_before, NULL)
+    ZEND_FE(AOP_add_around, NULL)
+    ZEND_FE(AOP_stop, NULL)
     {NULL, NULL, NULL}
 };
 
@@ -32,24 +32,24 @@ static zend_function_entry mygale_functions[] =
     On laisse 5 valeurs à null (vous verrez plus tard)
     on donne une version et des propriétés par défaut
 */
-zend_module_entry mygale_module_entry = 
+zend_module_entry AOP_module_entry = 
 {
     STANDARD_MODULE_HEADER,
-    PHP_MYGALE_EXTNAME,
-    mygale_functions,
+    PHP_AOP_EXTNAME,
+    AOP_functions,
     NULL, 
     NULL, 
     NULL, 
     NULL, 
     NULL,
-    PHP_MYGALE_VERSION,
+    PHP_AOP_VERSION,
     STANDARD_MODULE_PROPERTIES
 };
 
 
-static zend_class_entry* mygalepc_class_entry;
+static zend_class_entry* AOPpc_class_entry;
 
-zend_object_handlers mygalepc_object_handlers;
+zend_object_handlers AOPpc_object_handlers;
 
 typedef struct {
     zval *callback;
@@ -71,43 +71,43 @@ typedef struct {
     zval ***ret;
     ipointcut *ipointcut;
     int argsOverload;
-}  mygalepc_object;
+}  AOPpc_object;
 
 
-PHP_METHOD(MygalePC, getArgs);
-PHP_METHOD(MygalePC, getThis);
-PHP_METHOD(MygalePC, getFunctionName);
-PHP_METHOD(MygalePC, process);
-PHP_METHOD(MygalePC, processWithArgs);
+PHP_METHOD(AOPPC, getArgs);
+PHP_METHOD(AOPPC, getThis);
+PHP_METHOD(AOPPC, getFunctionName);
+PHP_METHOD(AOPPC, process);
+PHP_METHOD(AOPPC, processWithArgs);
 
-ZEND_BEGIN_ARG_INFO(arginfo_mygalepc_getargs, 0)
+ZEND_BEGIN_ARG_INFO(arginfo_AOPpc_getargs, 0)
 ZEND_END_ARG_INFO()
 
 
-ZEND_BEGIN_ARG_INFO(arginfo_mygalepc_getfunctionname, 0)
+ZEND_BEGIN_ARG_INFO(arginfo_AOPpc_getfunctionname, 0)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO(arginfo_mygalepc_process, 0)
+ZEND_BEGIN_ARG_INFO(arginfo_AOPpc_process, 0)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO(arginfo_mygalepc_getthis, 0)
+ZEND_BEGIN_ARG_INFO(arginfo_AOPpc_getthis, 0)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO(arginfo_mygalepc_processwithargs, 0)
+ZEND_BEGIN_ARG_INFO(arginfo_AOPpc_processwithargs, 0)
 ZEND_END_ARG_INFO()
 
 zval *new_execute(ipointcut *);
 
-static const zend_function_entry mygalepc_functions[] = {
-        PHP_ME(MygalePC, getArgs,arginfo_mygalepc_getargs, 0)
-        PHP_ME(MygalePC, getThis,arginfo_mygalepc_getthis, 0)
-        PHP_ME(MygalePC, process,arginfo_mygalepc_process, 0)
-        PHP_ME(MygalePC, processWithArgs,arginfo_mygalepc_processwithargs, 0)
-        PHP_ME(MygalePC, getFunctionName,arginfo_mygalepc_getfunctionname, 0)
+static const zend_function_entry AOPpc_functions[] = {
+        PHP_ME(AOPPC, getArgs,arginfo_AOPpc_getargs, 0)
+        PHP_ME(AOPPC, getThis,arginfo_AOPpc_getthis, 0)
+        PHP_ME(AOPPC, process,arginfo_AOPpc_process, 0)
+        PHP_ME(AOPPC, processWithArgs,arginfo_AOPpc_processwithargs, 0)
+        PHP_ME(AOPPC, getFunctionName,arginfo_AOPpc_getfunctionname, 0)
     {NULL, NULL, NULL}
 };
 
-zval *exec(mygalepc_object *obj, zval *args) {
+zval *exec(AOPpc_object *obj, zval *args) {
     if (args!=NULL) {
         obj->argsOverload=1;
         obj->args = args;
@@ -170,7 +170,7 @@ zval *exec(mygalepc_object *obj, zval *args) {
         zval *exec_return;
         //php_printf("BEFORE EXE");
         if (obj->argsOverload) {
-            mygalepc_object *objN = (mygalepc_object *)zend_object_store_get_object(obj->ipointcut->object TSRMLS_CC);
+            AOPpc_object *objN = (AOPpc_object *)zend_object_store_get_object(obj->ipointcut->object TSRMLS_CC);
             objN->argsOverload=1;
             objN->args = obj->args;
             zval_copy_ctor(objN->args);
@@ -188,9 +188,9 @@ zval *exec(mygalepc_object *obj, zval *args) {
 
 }
 
-PHP_METHOD(MygalePC, processWithArgs)
+PHP_METHOD(AOPPC, processWithArgs)
 {
-    mygalepc_object *obj = (mygalepc_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
+    AOPpc_object *obj = (AOPpc_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
     zval *params;
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "a", &params) == FAILURE) {
         zend_error(E_ERROR, "Problem in processWithArgs");
@@ -204,19 +204,19 @@ PHP_METHOD(MygalePC, processWithArgs)
 }
 
 
-PHP_METHOD(MygalePC, process)
+PHP_METHOD(AOPPC, process)
 {
     zval *toReturn;
-    mygalepc_object *obj = (mygalepc_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
+    AOPpc_object *obj = (AOPpc_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
     toReturn = exec(obj, NULL);
     if (toReturn != NULL) {
             COPY_PZVAL_TO_ZVAL(*return_value, toReturn);
     }
 }
 
-PHP_METHOD(MygalePC, getArgs)
+PHP_METHOD(AOPPC, getArgs)
 {
-    mygalepc_object *obj = (mygalepc_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
+    AOPpc_object *obj = (AOPpc_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
 
     Z_TYPE_P(return_value)   = IS_ARRAY;
     Z_ARRVAL_P(return_value) = Z_ARRVAL_P(obj->args);
@@ -224,9 +224,9 @@ PHP_METHOD(MygalePC, getArgs)
     return;
 }
 
-PHP_METHOD(MygalePC, getThis)
+PHP_METHOD(AOPPC, getThis)
 {
-    mygalepc_object *obj = (mygalepc_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
+    AOPpc_object *obj = (AOPpc_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
     if (obj->this!=NULL) {
         Z_TYPE_P(return_value)   = IS_OBJECT;
         Z_OBJVAL_P(return_value) = Z_OBJVAL_P(obj->this);
@@ -237,9 +237,9 @@ PHP_METHOD(MygalePC, getThis)
     return;
 }
 
-PHP_METHOD(MygalePC, getFunctionName)
+PHP_METHOD(AOPPC, getFunctionName)
 {
-    mygalepc_object *obj = (mygalepc_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
+    AOPpc_object *obj = (AOPpc_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
 
     Z_TYPE_P(return_value)   = IS_STRING;
     Z_STRVAL_P(return_value) = obj->funcName;
@@ -248,9 +248,9 @@ PHP_METHOD(MygalePC, getFunctionName)
 }
 
 
-void mygalepc_free_storage(void *object TSRMLS_DC)
+void AOPpc_free_storage(void *object TSRMLS_DC)
 {
-    mygalepc_object *obj = (mygalepc_object *)object;
+    AOPpc_object *obj = (AOPpc_object *)object;
     zend_hash_destroy(obj->std.properties);
     FREE_HASHTABLE(obj->std.properties);
     efree(obj);
@@ -259,13 +259,13 @@ void mygalepc_free_storage(void *object TSRMLS_DC)
 
 
 
-zend_object_value mygalepc_create_handler(zend_class_entry *type TSRMLS_DC)
+zend_object_value AOPpc_create_handler(zend_class_entry *type TSRMLS_DC)
 {
     zval *tmp;
     zend_object_value retval;
 
-    mygalepc_object *obj = (mygalepc_object *)emalloc(sizeof(mygalepc_object));
-    memset(obj, 0, sizeof(mygalepc_object));
+    AOPpc_object *obj = (AOPpc_object *)emalloc(sizeof(AOPpc_object));
+    memset(obj, 0, sizeof(AOPpc_object));
     obj->std.ce = type;
 
     ALLOC_HASHTABLE(obj->std.properties);
@@ -274,16 +274,16 @@ zend_object_value mygalepc_create_handler(zend_class_entry *type TSRMLS_DC)
      //   (copy_ctor_func_t)zval_add_ref, (void *)&tmp, sizeof(zval *));
 
     retval.handle = zend_objects_store_put(obj, NULL,
-        mygalepc_free_storage, NULL TSRMLS_CC);
-    retval.handlers = &mygalepc_object_handlers;
+        AOPpc_free_storage, NULL TSRMLS_CC);
+    retval.handlers = &AOPpc_object_handlers;
 
     return retval;
 }
-#if COMPILE_DL_MYGALE
-ZEND_GET_MODULE(mygale) 
+#if COMPILE_DL_AOP
+ZEND_GET_MODULE(AOP) 
 #endif
 
-ZEND_DLEXPORT void mygale_execute (zend_op_array *ops TSRMLS_DC);
+ZEND_DLEXPORT void AOP_execute (zend_op_array *ops TSRMLS_DC);
 
 int started = 0;
 
@@ -295,8 +295,8 @@ zval* execute_please (zval func, char *name, zval *call_args, zend_op_array *ops
         zval *args[1];
         MAKE_STD_ZVAL(object);
         Z_TYPE_P(object) = IS_OBJECT;
-        (object)->value.obj = mygalepc_create_handler(mygalepc_class_entry);
-        mygalepc_object *obj = (mygalepc_object *)zend_object_store_get_object(object TSRMLS_CC);
+        (object)->value.obj = AOPpc_create_handler(AOPpc_class_entry);
+        AOPpc_object *obj = (AOPpc_object *)zend_object_store_get_object(object TSRMLS_CC);
         obj->args = call_args;
         obj->funcName = name;
         if (callback!=NULL) {
@@ -324,18 +324,18 @@ zval* execute_please (zval func, char *name, zval *call_args, zend_op_array *ops
         return zret_ptr;
 }
 
-void start_mygale () {
+void start_AOP () {
     if (!started) {
         started=1;      
             zend_class_entry ce;
 
-        INIT_CLASS_ENTRY(ce, "MygalePC", mygalepc_functions);
-        mygalepc_class_entry = zend_register_internal_class(&ce TSRMLS_CC);
+        INIT_CLASS_ENTRY(ce, "AOPPC", AOPpc_functions);
+        AOPpc_class_entry = zend_register_internal_class(&ce TSRMLS_CC);
 
-        mygalepc_class_entry->create_object = mygalepc_create_handler;
-        memcpy(&mygalepc_object_handlers,
+        AOPpc_class_entry->create_object = AOPpc_create_handler;
+        memcpy(&AOPpc_object_handlers,
             zend_get_std_object_handlers(), sizeof(zend_object_handlers));
-        mygalepc_object_handlers.clone_obj = NULL;
+        AOPpc_object_handlers.clone_obj = NULL;
 
         MAKE_STD_ZVAL(before_arr);
         array_init(before_arr);
@@ -344,7 +344,7 @@ void start_mygale () {
         array_init(around_arr);
 
         _zend_execute = zend_execute;
-        zend_execute = mygale_execute;
+        zend_execute = AOP_execute;
     }
 }
 
@@ -462,7 +462,7 @@ int compare_selector (char *str1, char *str2) {
     return strcmp_with_joker(get_method_part(str1),get_method_part(str2));
 }
 
-ZEND_DLEXPORT void mygale_execute (zend_op_array *ops TSRMLS_DC) {
+ZEND_DLEXPORT void AOP_execute (zend_op_array *ops TSRMLS_DC) {
 
 
     char          *func = NULL;
@@ -498,8 +498,8 @@ ZEND_DLEXPORT void mygale_execute (zend_op_array *ops TSRMLS_DC) {
             zval *object;
             MAKE_STD_ZVAL(object);
             Z_TYPE_P(object) = IS_OBJECT;
-            (object)->value.obj = mygalepc_create_handler(mygalepc_class_entry);
-            mygalepc_object *obj = (mygalepc_object *)zend_object_store_get_object(object TSRMLS_CC);
+            (object)->value.obj = AOPpc_create_handler(AOPpc_class_entry);
+            AOPpc_object *obj = (AOPpc_object *)zend_object_store_get_object(object TSRMLS_CC);
             obj->args = args;
             obj->argsOverload = 0;
             zval_copy_ctor(obj->args);
@@ -536,9 +536,9 @@ ZEND_DLEXPORT void mygale_execute (zend_op_array *ops TSRMLS_DC) {
 
 
 
-ZEND_FUNCTION(mygale_add_around)
+ZEND_FUNCTION(AOP_add_around)
 {
-    start_mygale();
+    start_AOP();
     pointcut *PC = emalloc(sizeof(pointcut));
     zval *callback;
     zval *selector;
@@ -553,9 +553,9 @@ ZEND_FUNCTION(mygale_add_around)
     zend_hash_next_index_insert(around_arr->value.ht, &PC, sizeof(pointcut *), NULL);
 
 }
-ZEND_FUNCTION(mygale_add_before)
+ZEND_FUNCTION(AOP_add_before)
 {
-    start_mygale();
+    start_AOP();
 
     pointcut *PC = emalloc(sizeof(pointcut));
     zval *callback;
@@ -572,12 +572,12 @@ ZEND_FUNCTION(mygale_add_before)
 
 }
 
-ZEND_FUNCTION(mygale_start)
+ZEND_FUNCTION(AOP_start)
 {
-    start_mygale();
+    start_AOP();
 }
 
-ZEND_FUNCTION(mygale_stop)
+ZEND_FUNCTION(AOP_stop)
 {
     zend_execute = _zend_execute;
 }

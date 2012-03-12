@@ -1,4 +1,4 @@
-Mygale for PHP
+AOP for PHP
 =======================
 
 PHP Requirements
@@ -7,16 +7,16 @@ PHP Requirements
  * PHP 5.3 - not sure exact version
  * or PHP 5.4
 
-Why use Mygale
+Why use AOP
 ======================
 
-Mygale is an extension for AOP in PHP
+AOP is an extension for AOP in PHP
 
 How it works
 ============
 
- * mygale_add_around("function",callback);
- * mygale_add_around("class::method",callback);
+ * AOP_add_around("function",callback);
+ * AOP_add_around("class::method",callback);
 
 The callback receive a object parameter which have 3 methods
 
@@ -28,8 +28,8 @@ The callback receive a object parameter which have 3 methods
 
 The callback return is the return you will give to the result of the catched function/method
 
- * mygale_add_before("function",callback);
- * mygale_add_before("class::method",callback);
+ * AOP_add_before("function",callback);
+ * AOP_add_before("class::method",callback);
 
 The callback receive a object parameter which have 2 methods
 
@@ -47,7 +47,7 @@ The catch selector syntax
 Still in Work
 ============
 
- * mygale_add_after
- * mygale_add_catch
+ * AOP_add_after
+ * AOP_add_catch
  * autostart parameter in .ini
 
